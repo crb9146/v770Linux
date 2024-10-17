@@ -1,6 +1,9 @@
 #include <libusb-1.0/libusb.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <getopt.h>
+#include <string.h>
+#include <ctype.h>
 
 // Viper v770 Keyboard Experimental Linux Support
 
@@ -28,12 +31,37 @@ int set_lighting_static(libusb_device_handle * handle, int color_num);
 int set_lighting_predefined(libusb_device_handle * handle, int predefined_num);
 int set_lighting_custom(libusb_device_handle * handle, unsigned char matrix[]);
 int send_data(libusb_device_handle * handle, unsigned char data[], uint16_t data_size);
+int get_color_from_string(char * color);
 
-int main() {
+// Color/Pattern tables. These are not arbitrary, they are the numbers that actually change in the USB packet.
+// STATIC COLORS TABLE:
+// 0 = Blink through all
+// 1 = Red
+// 2 = Green
+// 3 = Yellow
+// 4 = Blue
+// 5 = Cyan
+// 6 = Magenta
+// 7 = White
 
-    // todo: create a CLI or GUI.
-    int profile_to_edit = 3; // change to 1 to 5 based on preferred profile. todo: Add CLI or GUI
+// PREDEFINED EFFECT TABLE
+// 0 = Breathing
+// 1 = Rainbow Wave
+// 2 = Reactive
+// 3 = Sidewinder
+// 4 = Ripple
+// 5 = Unused Reactive alternative? (No "fade out" present in this version).
+// 6 = Spectrum
+// 7 = Unused sidewinder like alternative? Really cool effect. Does not show up in the manual or software.
+// 8 = Raindrop
+// 9 = Vortex
+// 10 = Spotlight
+// 11 = Radar
 
+int main(int argc, char **argv) {
+    // todo: put code in multiple files, use headers
+
+    // Setup the device
     libusb_device_handle * handle;
     int err;
 
@@ -42,46 +70,76 @@ int main() {
         // Failed to init device
         return -1;
     }
+
+    // Check if args given
+    if (argc == 1) {
+        printf("Usage: %s [-s COLOR] [-b EFFECT] [-P PROFILE]\n", argv[0]);
+        printf("-s: Sets entire keyboard to a static color\n");
+        printf("\tExample: \"-s red\" or \"-s blink\"\n");
+        printf("\tAvailible colors are: \"red\", \"green\", \"blue\", \"yellow\", \"cyan\", \"magenta\", \"white\", \"blink\"\n");
+        printf("-b: Sets keyboard to a built-in effect (0 through 11)\n");
+        printf("\tExample: \"-b 1\"\n");
+        printf("\tEffects correspond to: \n \
+        0 = Breathing \n \
+        1 = Rainbow Wave \n \
+        2 = Reactive \n \
+        3 = Sidewinder \n \
+        4 = Ripple \n \
+        5 = Unused Reactive alternative (No \"fade out\" in this version). Does not show up in the manual or software \n \
+        6 = Spectrum \n \
+        7 = Unused sidewinder alternative. Does not show up in the manual or software \n \
+        8 = Raindrop \n \
+        9 = Vortex \n \
+        10 = Spotlight \n \
+        11 = Radar \n");
+        printf("-p: Loads a lighting profile (1 through 5) \n");
+        printf("\tExample: \"-p 3\"\n");
+        return 1;
+    }
+
+    // Parse args
+    int opt;
+    int color = -1;
+    while ((opt = getopt(argc, argv, "s:p:b:")) != -1) {
+        switch (opt) {
+            case 's':
+                color = get_color_from_string(optarg);
+                printf("Setting static color %s...\n", optarg);
+                set_lighting_static(handle, color);
+                break;
+            case 'p':
+                if (atoi(optarg) < 1 || atoi(optarg) > 5) {
+                    printf("Profile number to load must be between 1 and 5!\n");
+                    exit(EXIT_FAILURE);
+                }
+                printf("Loading lighting profile #%s...\n", optarg);
+                set_lighting_profile(handle, atoi(optarg));
+                break;
+            case 'b':
+                // If you give this arg a string that's not a number, like "-b hi", it will just be 0
+                if (atoi(optarg) < 0 || atoi(optarg) > 11){ 
+                    printf("Effect number to load must be between 1 and 11!\n");
+                    exit(EXIT_FAILURE);
+                }
+                printf("Setting built-in effect #%s...\n", optarg);
+                set_lighting_predefined(handle, atoi(optarg));
+                break;
+            default:
+                fprintf(stderr, "Usage: %s [-s COLOR] [-b EFFECT] [-P PROFILE]\n");
+                exit(EXIT_FAILURE);
+        }
+    }
     
+    // Release device after program finishes
+    release_device(handle);
+    return 0;
+
+    // todo: complete custom profiles
     // profile test setting functions
-    set_lighting_profile(handle, profile_to_edit);
 
     // custom RGB colors setting functions test
     //unsigned char matrix[] = {0x00};
     //set_lighting_custom(handle, matrix);
-    
-    // Setting static colors testing functions
-    int static_color = 3;
-    // STATIC COLORS TABLE:
-    // 0 = Blink through all
-    // 1 = Red
-    // 2 = Green
-    // 3 = Yellow
-    // 4 = Blue
-    // 5 = Cyan
-    // 6 = Magenta
-    // 7 = White
-    //set_lighting_static(handle, static_color);
-
-    // setting predefined values testing functions
-    int predefined_num = 6;
-    // PREDEFINED TABLE
-    // 0 = Breathing
-    // 1 = Rainbow Wave
-    // 2 = Reactive
-    // 3 = Sidewinder
-    // 4 = Ripple
-    // 5 = Unused Reactive alternative? (No "fade out" present in this version).
-    // 6 = Spectrum
-    // 7 = Unused sidewinder like alternative? Really cool effect. Does not show up in the manual or software.
-    // 8 = Raindrop
-    // 9 = Vortex
-    // 10 = Spotlight
-    // 11 = Radar
-    //set_lighting_predefined(handle, predefined_num);
-
-    // Release device after program finishes
-    release_device(handle);
 }
 
 int set_lighting_static(libusb_device_handle * handle, int color_num){
@@ -244,5 +302,36 @@ int send_data(libusb_device_handle * handle, unsigned char data[], uint16_t data
     else {
         printf("Success, sent %d bytes\n", err);
         return err; // return number of bytes successfully sent
+    }
+}
+
+// Convert arg color string to color enum 
+int get_color_from_string(char * color_string) {
+    
+    // Convert the string to lower case
+    for(int i = 0; color_string[i]; i++){
+        color_string[i] = tolower(color_string[i]);
+    }
+    
+    // Convert the color to an int. This int is a byte value changed in the packet based on the color.
+    if (strcmp(color_string, "blink") == 0) {
+        return 0;
+    } else if (strcmp(color_string, "red") == 0) {
+        return 1;
+    } else if (strcmp(color_string, "green") == 0) {
+        return 2;
+    } else if (strcmp(color_string, "yellow") == 0) {
+        return 3;
+    } else if (strcmp(color_string, "blue") == 0) {
+        return 4;
+    } else if (strcmp(color_string, "cyan") == 0) {
+        return 5;
+    } else if (strcmp(color_string, "magenta") == 0) {
+        return 6;
+    } else if (strcmp(color_string, "white") == 0) {
+        return 7;
+    } else {
+        printf("Unknown color: %s\n", color_string);
+        exit(EXIT_FAILURE);
     }
 }
