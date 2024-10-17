@@ -17,7 +17,7 @@ Currently this project supports:
 
 Future features to support:
 * Setting complete custom profiles (EX. changing 1 key to any RGB color).
-* A proper CLI and maybe a GUI.
+* Maybe a Qt GUI.
 
 ### Requirements
 `libusb1-devel` \
