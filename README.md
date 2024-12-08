@@ -16,8 +16,8 @@ Currently this project supports:
 * Setting a static color on every key.
 
 Future features to support:
-* Setting complete custom profiles (EX. changing 1 key to any RGB color).
-* Maybe a Qt GUI.
+* Custom profiles are in the works.
+* Contribute to OpenRGB too add support there instead of it being a standalone program.
 
 ### Requirements
 `libusb1-devel` \
